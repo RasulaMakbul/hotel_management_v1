@@ -71,6 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('reservations', [ReservationController::class, 'store'])->name('reservations.store')->permission('create reservation');
         Route::put('reservations/{reservation}', [ReservationController::class, 'update'])->name('reservations.update')->permission('edit reservation');
         Route::delete('reservations/{reservation}', [ReservationController::class, 'destroy'])->name('reservations.destroy')->permission('delete reservation');
+        Route::get('/guests/find/{phone}', [ReservationController::class, 'findGuest'])->name('guests.find');
     });
 });
 

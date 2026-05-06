@@ -115,13 +115,46 @@ export default function ReservationModal({
     const [requiresMedical, setRequiresMedical] = useState(false);
     const [note, setNote] = useState('');
     const [totalAmount, setTotalAmount] = useState(0);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+    // NEW STATES
+    const [phone, setPhone] = useState('');
+    const [guest, setGuest] = useState<any>(null);
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [nid, setNid] = useState('');
+    const [passport, setPassport] = useState('');
+    const [docType, setDocType] = useState<
+        'nid' | 'passport' | 'driving_license'
+    >('nid');
+    const [frontImage, setFrontImage] = useState<File | null>(null);
+    const [backImage, setBackImage] = useState<File | null>(null);
+
     useEffect(() => {
-        console.log('MODAL OPEN');
-        console.log('hotelLocations:', hotelLocations);
-        console.log('rooms:', rooms);
-        console.log('reservation:', reservation);
-        console.log('mode:', mode);
-    }, [isOpen]);
+        if (phone.length < 6) return;
+
+        const delay = setTimeout(() => {
+            router.get(
+                '/guests/find',
+                { phone },
+                {
+                    preserveState: true,
+                    onSuccess: (page: any) => {
+                        const found = page.props.guest;
+                        if (found) {
+                            setGuest(found);
+                            setFirstName(found.first_name);
+                            setLastName(found.last_name || '');
+                        } else {
+                            setGuest(null);
+                        }
+                    },
+                },
+            );
+        }, 500);
+
+        return () => clearTimeout(delay);
+    }, [phone]);
 
     // Initialize form based on mode and reservation
     useEffect(() => {
@@ -157,6 +190,48 @@ export default function ReservationModal({
             setNote(reservation.note || '');
         }
     }, [mode, reservation]);
+
+    const generateCalendarDays = (year: number, month: number) => {
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+
+        const days = [];
+
+        // padding before first day
+        for (let i = 0; i < firstDay.getDay(); i++) {
+            days.push(null);
+        }
+
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+            days.push(new Date(year, month, d));
+        }
+
+        return days;
+    };
+
+    const isBlockedDate = (date: Date) => {
+        return selectedRooms.some((roomId) => {
+            const roomAvailability = availability.find(
+                (a) => a.room_id === roomId,
+            );
+
+            if (!roomAvailability) return false;
+
+            return roomAvailability.blocked_dates.some(
+                (d) => new Date(d).toDateString() === date.toDateString(),
+            );
+        });
+    };
+
+    const isInSelectedRange = (date: Date) => {
+        if (!startDate || !endDate) return false;
+
+        const d = date.getTime();
+        return (
+            d >= new Date(startDate).getTime() &&
+            d <= new Date(endDate).getTime()
+        );
+    };
 
     // Filter rooms by selected location
     const filteredRooms = selectedLocation
@@ -230,32 +305,50 @@ export default function ReservationModal({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (
-            !selectedLocation ||
-            !selectedRooms.length ||
-            !startDate ||
-            !endDate
-        ) {
-            alert('Please fill in all required fields');
+        if (!phone) {
+            alert('Phone is required');
             return;
         }
 
-        const reservationData = {
-            hotel_location_id: selectedLocation,
-            room_ids: selectedRooms,
-            booking_type: bookingType,
-            start_at: startDate,
-            end_at: endDate,
-            adults,
-            children,
-            requires_medical: requiresMedical,
-            note,
-        };
+        const formData = new FormData();
 
-        onSubmit(reservationData);
+        formData.append('phone', phone);
+
+        if (!guest) {
+            formData.append('first_name', firstName);
+            formData.append('last_name', lastName);
+            formData.append('nid_no', nid);
+            formData.append('passport_no', passport);
+            formData.append('doc_type', docType);
+
+            if (frontImage) formData.append('front_image', frontImage);
+            if (backImage) formData.append('back_image', backImage);
+        } else {
+            formData.append('guest_id', guest.id);
+        }
+
+        formData.append('hotel_location_id', String(selectedLocation));
+        formData.append('booking_type', bookingType);
+        formData.append('start_at', startDate);
+        formData.append('end_at', endDate);
+        formData.append('requires_medical', requiresMedical ? '1' : '0');
+        formData.append('note', note);
+
+        selectedRooms.forEach((id, i) => {
+            formData.append(`rooms[${i}][room_id]`, String(id));
+            formData.append(`rooms[${i}][adults]`, String(adults[id] || 1));
+            formData.append(`rooms[${i}][children]`, String(children[id] || 0));
+        });
+
+        router.post('/reservations', formData);
     };
 
     if (!isOpen) return null;
+
+    const formatLocal = (date: Date) => {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
 
     return (
         <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black p-4">
@@ -278,6 +371,101 @@ export default function ReservationModal({
                     </div>
 
                     <form onSubmit={handleSubmit}>
+                        {/* Guest Info */}
+                        <div className="mb-4 rounded border p-4">
+                            <h3 className="mb-2 font-semibold">Guest Info</h3>
+
+                            <input
+                                type="text"
+                                placeholder="Phone (required)"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                className="mb-2 w-full border px-3 py-2"
+                            />
+
+                            {guest ? (
+                                <div className="text-sm text-green-600">
+                                    Existing Guest: {guest.first_name}{' '}
+                                    {guest.last_name}
+                                </div>
+                            ) : (
+                                <>
+                                    <input
+                                        type="text"
+                                        placeholder="First Name"
+                                        value={firstName}
+                                        onChange={(e) =>
+                                            setFirstName(e.target.value)
+                                        }
+                                        className="mb-2 w-full border px-3 py-2"
+                                    />
+
+                                    <input
+                                        type="text"
+                                        placeholder="Last Name"
+                                        value={lastName}
+                                        onChange={(e) =>
+                                            setLastName(e.target.value)
+                                        }
+                                        className="mb-2 w-full border px-3 py-2"
+                                    />
+
+                                    <input
+                                        type="text"
+                                        placeholder="NID"
+                                        value={nid}
+                                        onChange={(e) => setNid(e.target.value)}
+                                        className="mb-2 w-full border px-3 py-2"
+                                    />
+
+                                    <input
+                                        type="text"
+                                        placeholder="Passport"
+                                        value={passport}
+                                        onChange={(e) =>
+                                            setPassport(e.target.value)
+                                        }
+                                        className="mb-2 w-full border px-3 py-2"
+                                    />
+
+                                    {/* Document */}
+                                    <select
+                                        value={docType}
+                                        onChange={(e) =>
+                                            setDocType(e.target.value as any)
+                                        }
+                                        className="mb-2 w-full border px-3 py-2"
+                                    >
+                                        <option value="nid">NID</option>
+                                        <option value="passport">
+                                            Passport
+                                        </option>
+                                        <option value="driving_license">
+                                            Driving License
+                                        </option>
+                                    </select>
+
+                                    <input
+                                        type="file"
+                                        onChange={(e) =>
+                                            setFrontImage(
+                                                e.target.files?.[0] || null,
+                                            )
+                                        }
+                                        className="mb-2"
+                                    />
+
+                                    <input
+                                        type="file"
+                                        onChange={(e) =>
+                                            setBackImage(
+                                                e.target.files?.[0] || null,
+                                            )
+                                        }
+                                    />
+                                </>
+                            )}
+                        </div>
                         {/* Hotel Location */}
                         <div className="mb-4">
                             <label className="mb-1 block text-sm font-medium">
@@ -540,6 +728,114 @@ export default function ReservationModal({
                                     className="w-full rounded border px-3 py-2"
                                     disabled={mode === 'show'}
                                 />
+                            </div>
+                        </div>
+                        <div className="mb-6">
+                            <h3 className="mb-2 font-semibold">
+                                Availability Calendar
+                            </h3>
+
+                            {/* Month Controls */}
+                            <div className="mb-2 flex items-center justify-between">
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setCurrentMonth(
+                                            new Date(
+                                                currentMonth.getFullYear(),
+                                                currentMonth.getMonth() - 1,
+                                                1,
+                                            ),
+                                        )
+                                    }
+                                >
+                                    ←
+                                </button>
+
+                                <span className="font-medium">
+                                    {currentMonth.toLocaleString('default', {
+                                        month: 'long',
+                                        year: 'numeric',
+                                    })}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        setCurrentMonth(
+                                            new Date(
+                                                currentMonth.getFullYear(),
+                                                currentMonth.getMonth() + 1,
+                                                1,
+                                            ),
+                                        )
+                                    }
+                                >
+                                    →
+                                </button>
+                            </div>
+
+                            {/* Calendar Grid */}
+                            <div className="grid grid-cols-7 gap-1 text-center text-sm">
+                                {[
+                                    'Sun',
+                                    'Mon',
+                                    'Tue',
+                                    'Wed',
+                                    'Thu',
+                                    'Fri',
+                                    'Sat',
+                                ].map((d) => (
+                                    <div key={d} className="font-medium">
+                                        {d}
+                                    </div>
+                                ))}
+
+                                {generateCalendarDays(
+                                    currentMonth.getFullYear(),
+                                    currentMonth.getMonth(),
+                                ).map((date, i) => {
+                                    if (!date)
+                                        return (
+                                            <div key={i} className="p-2"></div>
+                                        );
+
+                                    const blocked = isBlockedDate(date);
+                                    const selected = isInSelectedRange(date);
+
+                                    return (
+                                        <div
+                                            key={i}
+                                            className={`cursor-pointer rounded p-2 ${blocked ? 'bg-red-200 text-red-700' : ''} ${selected ? 'bg-green-200' : ''} ${!blocked && !selected ? 'hover:bg-gray-100' : ''} `}
+                                            onClick={() => {
+                                                if (mode === 'show') return;
+                                                if (blocked) return;
+
+                                                const iso = date
+                                                    .toISOString()
+                                                    .slice(0, 16);
+
+                                                if (!startDate)
+                                                    setStartDate(iso);
+                                                else if (!endDate)
+                                                    setEndDate(iso);
+                                                else {
+                                                    setStartDate(iso);
+                                                    setEndDate('');
+                                                }
+                                            }}
+                                        >
+                                            {date.getDate()}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="mt-2 flex gap-4 text-xs">
+                                <span className="text-red-600">■ Blocked</span>
+                                <span className="text-green-600">
+                                    ■ Selected
+                                </span>
                             </div>
                         </div>
 

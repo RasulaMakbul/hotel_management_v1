@@ -15,9 +15,31 @@ type Reservation = {
     note?: string;
 
     guest: {
+        id: number;
         first_name: string;
         last_name?: string;
         phone: string;
+        email?: string;
+        date_of_birth?: string;
+        passport_no?: string;
+        nid_no?: string;
+        type: 'walk_in' | 'corporate' | 'vip' | 'regular' | 'online';
+        address?: string;
+        note?: string;
+        total_visits: number;
+        total_spent: string;
+        created_at: string;
+        updated_at: string;
+        guest_document?: {
+            id: number;
+            type: string;
+            document_number?: string;
+            front_image?: string;
+            back_image?: string;
+            status: 'pending' | 'verified' | 'rejected';
+            is_ai_verified: boolean;
+            expiry_date?: string;
+        }[];
     };
 
     rooms: {
@@ -26,10 +48,7 @@ type Reservation = {
             room_number: string;
             name: string;
             hotel_location_id: number;
-            hotel_location?: {
-                id: number;
-                name: string;
-            };
+            hotel_location?: HotelLocation;
         };
         adults: number;
         children: number;
@@ -73,7 +92,7 @@ type Props = {
         to?: string;
         status?: string;
     };
-    hotelLocations: HotelLocation[];
+    hotel_locations: HotelLocation[];
     rooms: Room[];
     availability: Availability[];
 };
@@ -81,7 +100,7 @@ type Props = {
 export default function ReservationIndex({
     reservations = { data: [], links: [] },
     filters = {},
-    hotelLocations = [],
+    hotel_locations = [],
     rooms = [],
     availability = [],
 }: Props) {
@@ -108,6 +127,8 @@ export default function ReservationIndex({
     const [requiresMedical, setRequiresMedical] = useState(false);
     const [note, setNote] = useState('');
     const [totalAmount, setTotalAmount] = useState(0);
+
+    console.log('Hotel Locations:', hotel_locations);
 
     // Filter rooms by selected location
     const filteredRooms = selectedLocation
@@ -503,7 +524,7 @@ export default function ReservationIndex({
                                             <option value="">
                                                 Select Location
                                             </option>
-                                            {hotelLocations.map((location) => (
+                                            {hotel_locations.map((location) => (
                                                 <option
                                                     key={location.id}
                                                     value={location.id}
@@ -903,10 +924,10 @@ export default function ReservationIndex({
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 mode={mode}
-                reservation={selectedReservation}
-                hotelLocations={hotelLocations}
-                rooms={rooms}
-                availability={availability}
+                reservation={selectedReservation ?? null}
+                hotelLocations={hotel_locations ?? []}
+                rooms={rooms ?? []}
+                availability={availability ?? []}
                 onSubmit={handleModalSubmit}
             />
         </>
