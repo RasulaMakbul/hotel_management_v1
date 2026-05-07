@@ -37,24 +37,7 @@ class RoleController extends Controller
         return redirect()->back()->with('success', 'Role created successfully.');
     }
 
-    // public function update(Request $request, Role $role)
-    // {
-    //     $validated = $request->validate([
-    //         'name' => 'required|string|unique:roles,name,' . $role->id,
-    //         'permissions' => 'array',
-    //         'permissions.*' => 'string',
-    //     ]);
 
-    //     // Update role name
-    //     $role->update([
-    //         'name' => $validated['name'],
-    //     ]);
-
-    //     // Sync permissions (IMPORTANT)
-    //     $role->syncPermissions($validated['permissions'] ?? []);
-
-    //     return redirect()->back()->with('success', 'Role updated successfully.');
-    // }
 
 
     public function update(Request $request, Role $role)

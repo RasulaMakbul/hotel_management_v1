@@ -19,12 +19,3 @@ export type AuthLayoutProps = {
     title?: string;
     description?: string;
 };
-
-// export type RoomType = {
-//     name: string;
-//     base_price: number;
-//     description: string;
-//     image: string;
-//     is_active: boolean;
-//     capacity: number;
-// };
